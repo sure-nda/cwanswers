@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
-	//"bufio"
 	//"runtime"
 	"unicode"
 	//"unicode/utf8"
@@ -30,13 +30,22 @@ func cwanswers(inputfile string, isHtml bool) {
 		fmt.Println("File I/O Error")
 		return
 	}
+	var w *bufio.Writer
 
 	splitcontent := strings.Split(string(content), "===\n")
 
 	lines := strings.Split(splitcontent[0], "\n")
 	Xsize := len(lines)
 	if isHtml {
-		fmt.Printf("<style type=\"text/css\" media=\"all\">\n\t@import url( http://eemaata.com/em/wp-content/themes/hive/crosswordprint.css );\n </style>\n")
+		outputfile := strings.Replace(inputfile, ".txt", ".html", 1)
+		f, err := os.OpenFile(outputfile, os.O_WRONLY|os.O_CREATE, 0666)
+		if err != nil {
+			fmt.Println("File I/O Error")
+			return
+		}
+		w = bufio.NewWriter(f)
+		defer func() { w.Flush(); f.Close() }()
+		fmt.Fprintf(w, "<style type=\"text/css\" media=\"all\">\n\t@import url( http://eemaata.com/em/wp-content/themes/hive/crosswordprint.css );\n </style>\n")
 
 	}
 	//fmt.Printf("Xsize=%d\n", Xsize)
@@ -44,7 +53,7 @@ func cwanswers(inputfile string, isHtml bool) {
 	cells := make([][]string, Xsize)
 	var acrossAnswers [100]string
 	var downAnswers [100]string
-	var id string
+	var id, clueidstr string
 	var clueid int = 0
 	var newclue bool
 	for lineno := 0; lineno < Xsize; lineno++ {
@@ -52,8 +61,13 @@ func cwanswers(inputfile string, isHtml bool) {
 			Xsize--
 			break
 		}
-		cells[lineno] = strings.Split(lines[lineno], "|")
+		if strings.ContainsAny(lines[lineno], "|") {
+			cells[lineno] = strings.Split(lines[lineno], "|")
+		} else {
+			cells[lineno] = strings.Split(lines[lineno], "\t")
+		}
 		tmpysize := len(cells[lineno])
+
 		if Ysize == 0 {
 			Ysize = tmpysize
 		}
@@ -66,11 +80,11 @@ func cwanswers(inputfile string, isHtml bool) {
 	//fmt.Println(cells)
 
 	if isHtml {
-		fmt.Println("<table id=\"table15367\" class=\"crossword\"><tbody>")
+		fmt.Fprintln(w, "<table id=\"table15367\" class=\"crossword\"><tbody>")
 	}
 	for lineno := 0; lineno < Xsize; lineno++ {
 		if isHtml {
-			fmt.Println("\t<tr>")
+			fmt.Fprintln(w, "\t<tr>")
 		}
 		for i := range cells[lineno] {
 			newclue = false
@@ -100,36 +114,38 @@ func cwanswers(inputfile string, isHtml bool) {
 
 				if newclue {
 					clueid++
-					id = " id=d" + strconv.Itoa(clueid)
+					clueidstr = strconv.Itoa(clueid)
+					id = " id=d" + clueidstr
 				} else {
 					id = ""
+					clueidstr = ""
 				}
 				if isHtml {
-					fmt.Printf("\t\t<td%s><input type=\"text\" value=\"%s\"/></td>\n", id, cells[lineno][i])
+					fmt.Fprintf(w, "\t\t<td%s><input type=\"text\" value=\"%s\"/></td>\n", id, cells[lineno][i])
 				} else {
-					fmt.Printf("\t%d%s", clueid, cells[lineno][i])
+					fmt.Printf("\t%s%s", clueidstr, cells[lineno][i])
 				}
 			} else {
 				if isHtml {
-					fmt.Printf("\t\t<td></td>\n")
+					fmt.Fprintf(w, "\t\t<td></td>\n")
 				} else {
 					fmt.Printf("\t#")
 				}
 			}
 		}
 		if isHtml {
-			fmt.Println("\t</tr>")
+			fmt.Fprintln(w, "\t</tr>")
 		} else {
 			fmt.Println("")
 		}
 	}
 	if isHtml {
-		fmt.Println("<tbody></table>")
+		fmt.Fprintln(w, "<tbody></table>")
 	}
 
 	if len(splitcontent) > 2 {
 		if isHtml {
-			fmt.Println("<h3>అడ్డం</h3> <ol id=\"hor\" class=\"pointer\">")
+			fmt.Fprintln(w, "<h3>అడ్డం</h3> <ol id=\"hor\" class=\"pointer\">")
 		}
 		acrossclues := strings.Split(splitcontent[1], "\n")
 		var clueno = 0
@@ -138,9 +154,9 @@ func cwanswers(inputfile string, isHtml bool) {
 				if isHtml {
 					if acrossclues[clueno][0] >= '0' && acrossclues[clueno][0] <= '9' {
 						indexByte := strings.IndexFunc(acrossclues[clueno], func(c rune) bool { return (unicode.IsSpace(c)) })
-						fmt.Printf("<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, acrossclues[clueno][indexByte:], acrossAnswers[i])
+						fmt.Fprintf(w, "<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, acrossclues[clueno][indexByte:], acrossAnswers[i])
 					} else {
-						fmt.Printf("<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, acrossclues[clueno], acrossAnswers[i])
+						fmt.Fprintf(w, "<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, acrossclues[clueno], acrossAnswers[i])
 					}
 				} else {
 					fmt.Println(i, acrossclues[clueno], "\nసమాధానం: ", acrossAnswers[i])
@@ -149,8 +165,8 @@ func cwanswers(inputfile string, isHtml bool) {
 			}
 		}
 		if isHtml {
-			fmt.Println("</ol>")
-			fmt.Println("<h3>నిలువు</h3> <ol id=\"ver\" class=\"pointer\">")
+			fmt.Fprintln(w, "</ol>")
+			fmt.Fprintln(w, "<h3>నిలువు</h3> <ol id=\"ver\" class=\"pointer\">")
 		}
 
 		downclues := strings.Split(splitcontent[2], "\n")
@@ -160,9 +176,9 @@ func cwanswers(inputfile string, isHtml bool) {
 				if isHtml {
 					if downclues[clueno][0] >= '0' && downclues[clueno][0] <= '9' {
 						indexByte := strings.IndexFunc(downclues[clueno], func(c rune) bool { return (unicode.IsSpace(c)) })
-						fmt.Printf("<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, downclues[clueno][indexByte:], downAnswers[i])
+						fmt.Fprintf(w, "<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, downclues[clueno][indexByte:], downAnswers[i])
 					} else {
-						fmt.Printf("<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, downclues[clueno], downAnswers[i])
+						fmt.Fprintf(w, "<li value=\"%d\"><strong>%s</strong>\n సమాధానం: %s</li>\n", i, downclues[clueno], downAnswers[i])
 					}
 				} else {
 					fmt.Println(i, downclues[clueno], "\nసమాధానం: ", downAnswers[i])
@@ -171,7 +187,7 @@ func cwanswers(inputfile string, isHtml bool) {
 			}
 		}
 		if isHtml {
-			fmt.Println("</ol>")
+			fmt.Fprintln(w, "</ol>")
 		}
 	}
 	//outfile.Sync()
