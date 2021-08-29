@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
 	//"runtime"
 	"unicode"
 	//"unicode/utf8"
@@ -12,16 +13,50 @@ import (
 	"strings"
 )
 
-const (
-	TELUGU_VOWEL_BEGIN      = 0xC00
-	TELUGU_VOWEL_END        = 0xC14
-	TELUGU_CONS_BEGIN       = 0xC15
-	TELUGU_CONS_END         = 0xC39
-	TELUGU_VOWEL_SIGN_BEGIN = 0xC3D
-	TELUGU_VOWEL_SIGN_END   = 0xC4D
-	TELUGU_POLLU            = 0x0C4D
-	ZWNJ                    = 0x200C
-)
+type puzzle struct {
+	cells         [][]string
+	acrossAnswers []string
+	downAnswers   []string
+}
+
+func readpuzzle(inputfile string) *puzzle {
+	content, err := ioutil.ReadFile(inputfile)
+	if err != nil {
+		fmt.Println("File I/O Error")
+		return nil
+	}
+
+	splitcontent := strings.Split(string(content), "===\n")
+
+	lines := strings.Split(splitcontent[0], "\n")
+	Xsize := len(lines)
+	var Ysize int = 0
+	var puzz puzzle
+	puzz.cells = make([][]string, Xsize)
+	for lineno := 0; lineno < Xsize; lineno++ {
+		if lines[lineno] == "" {
+			Xsize--
+			break
+		}
+		if strings.ContainsAny(lines[lineno], "|") {
+			puzz.cells[lineno] = strings.Split(lines[lineno], "|")
+		} else {
+			puzz.cells[lineno] = strings.Split(lines[lineno], "\t")
+		}
+		tmpysize := len(puzz.cells[lineno])
+
+		if Ysize == 0 {
+			Ysize = tmpysize
+		}
+		if tmpysize != Ysize {
+			fmt.Printf("mismatchedColumns,row=%d,Ysize=%d,tmpysize=%d\n", lineno, Ysize, tmpysize)
+		}
+	}
+	return &puzz
+	//fmt.Printf("Ysize=%d\n", Ysize)
+
+	//fmt.Println(cells)
+}
 
 func cwanswers(inputfile string, isHtml bool) {
 
@@ -31,6 +66,7 @@ func cwanswers(inputfile string, isHtml bool) {
 		return
 	}
 	var w *bufio.Writer
+	var f *os.File
 
 	splitcontent := strings.Split(string(content), "===\n")
 
@@ -38,13 +74,12 @@ func cwanswers(inputfile string, isHtml bool) {
 	Xsize := len(lines)
 	if isHtml {
 		outputfile := strings.Replace(inputfile, ".txt", ".html", 1)
-		f, err := os.OpenFile(outputfile, os.O_WRONLY|os.O_CREATE, 0666)
+		f, err = os.OpenFile(outputfile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0666)
 		if err != nil {
 			fmt.Println("File I/O Error")
 			return
 		}
 		w = bufio.NewWriter(f)
-		defer func() { w.Flush(); f.Close() }()
 		fmt.Fprintf(w, "<style type=\"text/css\" media=\"all\">\n\t@import url( http://eemaata.com/em/wp-content/themes/hive/crosswordprint.css );\n </style>\n")
 
 	}
@@ -188,11 +223,11 @@ func cwanswers(inputfile string, isHtml bool) {
 		}
 		if isHtml {
 			fmt.Fprintln(w, "</ol>")
+			w.Flush()
+			f.Close()
 		}
 	}
 	//outfile.Sync()
-
-	//fmt.Println("output", rtstext)
 }
 
 func main() {
